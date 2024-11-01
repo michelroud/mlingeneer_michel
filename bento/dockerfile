@@ -1,0 +1,14 @@
+FROM python:3.9
+
+WORKDIR /code
+
+COPY ./requirements.txt /code/requirements.txt
+
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+
+COPY ./form.py /code/form.py
+ENV MODEL_PATH=/root/bentoml/models/prophet_models.bin
+
+EXPOSE 5010
+
+CMD ["bentoml", "serve", "form:IrisClassifier","--port","5010"]

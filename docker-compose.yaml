@@ -3,7 +3,7 @@ version: "3.3"
 services:
   db:
     restart: always
-    image: postgres
+    image: postgres:15.2-alpine
     container_name: mlflow_db
     expose:
       - "${PG_PORT}"
@@ -82,7 +82,7 @@ services:
       - MLFLOW_S3_IGNORE_TLS=true
     command: >
       mlflow server
-      --backend-store-uri postgresql://${PG_USER}:${PG_PASSWORD}@db:${PG_PORT}/${PG_DATABASE}
+      --backend-store-uri postgresql://${PG_USER}:${PG_PASSWORD}@db:${PG_PORT}/prefect
       --host 0.0.0.0
       --serve-artifacts
       --artifacts-destination s3://${MLFLOW_BUCKET_NAME}
@@ -91,10 +91,101 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+  ### Prefect Server API and UI
+  server:
+    image: prefecthq/prefect:3.0.11-python3.11
+    restart: always
+    volumes:
+      - prefect:/root/.prefect
+    entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "server", "start"]
+    env_file:
+      - config.env
+    environment:
+      - PREFECT_UI_URL=http://127.0.0.1:4200/api
+      - PREFECT_API_URL=http://127.0.0.1:4200/api
+      # If you want to access Prefect Server UI from anywhere other than the Docker host machine, you will need to change
+      # PREFECT_UI_URL and PREFECT_API_URL to match the external hostname/IP of the host machine. For example:
+      #- PREFECT_UI_URL=http://external-ip:4200/api
+      #- PREFECT_API_URL=http://external-ip:4200/api
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+      - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://${PG_USER}:${PG_PASSWORD}@db:${PG_PORT}/${PG_DATABASE}
+      # Uncomment the following line if you want to use the 'S3 Bucket' storage block instead of the older 'S3' storage
+      # - EXTRA_PIP_PACKAGES=prefect-aws
+      - PREFECT_PROFILE=ephemeral
+      - PREFECT_SERVER_ALLOW_EPHEMERAL_MODE=true
+
+    ports:
+      - 4200:4200
+    depends_on:
+      - db
+    networks:
+      - backend
+
+    #profiles: ["server"]
+
+  ## Prefect Agent
+  agent:
+    image: prefecthq/prefect:3.0.11-python3.11
+    restart: always
+    entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "agent", "start", "-q", "perf.py"]
+    environment:
+      - PREFECT_API_URL=http://server:4200/api
+#       Use PREFECT_API_KEY if connecting the agent to Prefect Cloud
+    depends_on:
+      - server
+#     - PREFECT_API_KEY=YOUR_API_KEY
+    networks:
+      - backend
+
+
+  mysql:
+    container_name: mysql_zenml
+    restart: always
+    image: mysql:8.0
+    ports:
+      - 3306:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+    volumes:
+      - "$PWD/mysql-data:/var/lib/mysql"
+  zenml:
+    container_name: zenml_server
+    image: zenmldocker/zenml-server:0.64.0
+    ports:
+      - "8080:8080" #zenml dashboard
+    environment:
+      - ZENML_STORE_URL=mysql://root:password@host.docker.internal/zenml
+      - ZENML_DEFAULT_USER_NAME=admin
+      - ZENML_DEFAULT_USER_PASSWORD=Zenml12$
+    links:
+      - mysql
+    depends_on:
+      - mysql
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: on-failure
+
+
+  bentoml:
+    #build: ./bento
+    image: classifier:on6pusuw3g7ttddq
+    container_name: bentoml
+    ports:
+      - "3000:3000"
+    # depends_on:
+    #   - tracking_server
+    #   - s3
+  streamapp:
+    build: ./streamlit
+    container_name: appstreamlit
+    ports:
+      - "8501:8501"
+
 
 volumes:
   db_data:
   minio_data:
+  prefect:
 
 networks:
   frontend:

@@ -1,0 +1,13 @@
+bentoml
+prophet
+openpyxl
+pycaret
+autots
+darts
+fastapi
+ipykernel 
+matplotlib
+mlflow
+zenml==0.64.0
+
+

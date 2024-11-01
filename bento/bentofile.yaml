@@ -1,0 +1,12 @@
+service: "impore:Classifier"
+labels:
+  owner: bentoml-team
+  stage: demo
+include:
+- "impore.py"
+
+python:
+  requirements_txt: "requirements.txt"
+
+
+

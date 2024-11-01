@@ -1,0 +1,6 @@
+artifact_location: file:///home/michel/code_python/mts/mlflow-minio-postgres/bento/mlruns/0
+creation_time: 1730295530005
+experiment_id: '0'
+last_update_time: 1730295530005
+lifecycle_stage: active
+name: Default
